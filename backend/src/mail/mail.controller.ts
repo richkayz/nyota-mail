@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post } from "@nestjs/common";
 import { MailService } from "./mail.service";
 import { SmtpService } from "./smtp.service";
+import { MailCredentials } from "./mail-connection.service";
 
 @Controller("mail")
 export class MailController {
@@ -9,25 +10,28 @@ export class MailController {
     private readonly smtpService: SmtpService,
   ) {}
 
-  @Get("folders")
-  async getFolders() {
-    return this.mailService.getFolders();
+  @Post("folders")
+  async getFolders(@Body() credentials: MailCredentials) {
+    return this.mailService.getFolders(credentials);
   }
 
-  @Get("inbox")
-  async getInbox() {
-    return this.mailService.getInbox();
+  @Post("inbox")
+  async getInbox(@Body() credentials: MailCredentials) {
+    return this.mailService.getInbox(credentials);
   }
 
-  @Get("message/:uid")
-  async getMessage(@Param("uid") uid: string) {
-    return this.mailService.getMessage(Number(uid));
+  @Post("message/:uid")
+  async getMessage(
+    @Param("uid") uid: string,
+    @Body() credentials: MailCredentials,
+  ) {
+    return this.mailService.getMessage(Number(uid), credentials);
   }
 
   @Post("send")
   async sendMail(
     @Body()
-    body: {
+    body: MailCredentials & {
       to: string;
       cc?: string;
       bcc?: string;
@@ -36,6 +40,11 @@ export class MailController {
       html?: string;
     },
   ) {
-    return this.smtpService.sendMail(body);
+    const { email, password, ...data } = body;
+
+    return this.smtpService.sendMail(
+      { email, password },
+      data,
+    );
   }
 }

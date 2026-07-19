@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+enum MailboxType {
+  USER
+  SHARED
+  SYSTEM
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILED
+}
+
+model Tenant {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  domains       Domain[]
+  users         User[]
+  mailboxes     Mailbox[]
+  roles         Role[]
+  permissions   Permission[]
+  auditLogs     AuditLog[]
+  notifications Notification[]
+}
+
+model Domain {
+  id         Int      @id @default(autoincrement())
+  tenantId   Int
+  name       String   @unique
+  isPrimary  Boolean  @default(false)
+  isVerified Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  mailboxes Mailbox[]
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  tenantId     Int
+  name         String
+  email        String
+  passwordHash String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  mailboxes     Mailbox[]
+  roles         UserRole[]
+  tokens        RefreshToken[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@unique([tenantId, email])
+}
+
+model Mailbox {
+  id       Int  @id @default(autoincrement())
+  tenantId Int
+  domainId Int
+  userId   Int?
+
+  displayName String
+  localPart   String
+  email       String @unique
+
+  mailboxType MailboxType @default(USER)
+
+  username          String
+  passwordEncrypted String
+
+  imapHost   String
+  imapPort   Int
+  imapSecure Boolean
+
+  smtpHost   String
+  smtpPort   Int
+  smtpSecure Boolean
+
+  quotaMB Int @default(1024)
+  usedMB  Int @default(0)
+
+  isDefault Boolean @default(false)
+  isActive  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  domain Domain @relation(fields: [domainId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Role {
+  id          Int     @id @default(autoincrement())
+  tenantId    Int
+  name        String
+  description String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  @@unique([tenantId, name])
+}
+
+model Permission {
+  id          Int     @id @default(autoincrement())
+  tenantId    Int
+  name        String
+  description String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  roles RolePermission[]
+
+  @@unique([tenantId, name])
+}
+
+model UserRole {
+  userId Int
+  roleId Int
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       Int
+  permissionId Int
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model RefreshToken {
+  id     Int @id @default(autoincrement())
+  userId Int
+
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id       Int  @id @default(autoincrement())
+  tenantId Int
+  userId   Int?
+
+  action   String
+  entity   String
+  entityId String?
+
+  ipAddress String?
+  userAgent String?
+
+  result AuditResult
+
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model Notification {
+  id       Int  @id @default(autoincrement())
+  tenantId Int
+  userId   Int?
+
+  title   String
+  message String
+
+  type NotificationType @default(INFO)
+
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
